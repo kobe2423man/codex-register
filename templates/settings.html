@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>设置 - OpenAI 注册系统</title>
+    <title>系统设置 - OpenAI 注册系统</title>
     <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚙️</text></svg>">
 </head>
 <body>
     <div class="container">
@@ -18,6 +19,9 @@
                 <a href="/accounts" class="nav-link">账号管理</a>
                 <a href="/settings" class="nav-link active">设置</a>
             </div>
+            <button class="theme-toggle" onclick="theme.toggle()" title="切换主题">
+                🌙
+            </button>
         </nav>
 
         <!-- 主内容区 -->
@@ -29,10 +33,10 @@
 
             <!-- 设置标签页 -->
             <div class="tabs">
-                <button class="tab-btn active" data-tab="proxy">代理设置</button>
-                <button class="tab-btn" data-tab="email">邮箱服务</button>
-                <button class="tab-btn" data-tab="registration">注册配置</button>
-                <button class="tab-btn" data-tab="database">数据库</button>
+                <button class="tab-btn active" data-tab="proxy">🌐 代理设置</button>
+                <button class="tab-btn" data-tab="email">📧 邮箱服务</button>
+                <button class="tab-btn" data-tab="registration">⚙️ 注册配置</button>
+                <button class="tab-btn" data-tab="database">💾 数据库</button>
             </div>
 
             <!-- 代理设置 -->
@@ -73,18 +77,18 @@
                             <div class="form-row">
                                 <div class="form-group">
                                     <label for="proxy-username">用户名 (可选)</label>
-                                    <input type="text" id="proxy-username" name="username">
+                                    <input type="text" id="proxy-username" name="username" autocomplete="off">
                                 </div>
 
                                 <div class="form-group">
                                     <label for="proxy-password">密码 (可选)</label>
-                                    <input type="password" id="proxy-password" name="password">
+                                    <input type="password" id="proxy-password" name="password" autocomplete="new-password">
                                 </div>
                             </div>
 
                             <div class="form-actions">
-                                <button type="submit" class="btn btn-primary">保存设置</button>
-                                <button type="button" class="btn btn-secondary" id="test-proxy-btn">测试连接</button>
+                                <button type="submit" class="btn btn-primary">💾 保存设置</button>
+                                <button type="button" class="btn btn-secondary" id="test-proxy-btn">🔌 测试连接</button>
                             </div>
                         </form>
                     </div>
@@ -96,8 +100,8 @@
                 <!-- Outlook 批量导入 -->
                 <div class="card" id="outlook-import-card">
                     <div class="card-header">
-                        <h3>Outlook 批量导入</h3>
-                        <button class="btn btn-sm btn-secondary" id="toggle-import-btn">展开</button>
+                        <h3>📥 Outlook 批量导入</h3>
+                        <button class="btn btn-ghost btn-sm" id="toggle-import-btn">展开</button>
                     </div>
                     <div class="card-body" id="outlook-import-body" style="display: none;">
                         <div class="import-info">
@@ -125,41 +129,44 @@
                             </div>
                         </div>
                         <div class="form-actions">
-                            <button type="button" class="btn btn-primary" id="outlook-import-btn">开始导入</button>
+                            <button type="button" class="btn btn-primary" id="outlook-import-btn">📥 开始导入</button>
                             <button type="button" class="btn btn-secondary" id="clear-import-btn">清空</button>
                         </div>
-                        <div id="import-result" style="display: none; margin-top: 16px;">
-                            <div class="import-stats"></div>
-                            <div class="import-errors" style="margin-top: 8px;"></div>
-                        </div>
+                        <div id="import-result" style="display: none; margin-top: var(--spacing-md);"></div>
                     </div>
                 </div>
 
                 <div class="card">
                     <div class="card-header">
                         <h3>邮箱服务配置</h3>
-                        <div class="toolbar-left">
-                            <button class="btn btn-sm btn-primary" id="add-email-service-btn">添加服务</button>
-                            <button class="btn btn-sm btn-danger" id="batch-delete-btn" style="display: none;">批量删除</button>
-                        </div>
+                        <button class="btn btn-primary btn-sm" id="add-email-service-btn">➕ 添加服务</button>
                     </div>
-                    <div class="card-body">
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th><input type="checkbox" id="select-all-services"></th>
-                                    <th>名称</th>
-                                    <th>类型</th>
-                                    <th>状态</th>
-                                    <th>优先级</th>
-                                    <th>最后使用</th>
-                                    <th>操作</th>
-                                </tr>
-                            </thead>
-                            <tbody id="email-services-table">
-                                <!-- 动态加载 -->
-                            </tbody>
-                        </table>
+                    <div class="card-body" style="padding: 0;">
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 40px;"><input type="checkbox" id="select-all-services"></th>
+                                        <th>名称</th>
+                                        <th style="width: 120px;">类型</th>
+                                        <th style="width: 100px;">状态</th>
+                                        <th style="width: 80px;">优先级</th>
+                                        <th style="width: 160px;">最后使用</th>
+                                        <th style="width: 180px;">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="email-services-table">
+                                    <tr>
+                                        <td colspan="7">
+                                            <div class="empty-state">
+                                                <div class="skeleton skeleton-text"></div>
+                                                <div class="skeleton skeleton-text" style="width: 80%;"></div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -171,7 +178,7 @@
                         <h3>注册配置</h3>
                     </div>
                     <div class="card-body">
-                        <form id="registration-form">
+                        <form id="registration-settings-form">
                             <div class="form-row">
                                 <div class="form-group">
                                     <label for="max-retries">最大重试次数</label>
@@ -202,7 +209,7 @@
                             </div>
 
                             <div class="form-actions">
-                                <button type="submit" class="btn btn-primary">保存设置</button>
+                                <button type="submit" class="btn btn-primary">💾 保存设置</button>
                             </div>
                         </form>
                     </div>
@@ -216,28 +223,28 @@
                         <h3>数据库信息</h3>
                     </div>
                     <div class="card-body">
-                        <div class="info-grid">
+                        <div class="info-grid" style="margin-bottom: var(--spacing-lg);">
                             <div class="info-item">
-                                <span class="label">数据库大小:</span>
+                                <span class="label">数据库大小</span>
                                 <span id="db-size" class="value">-</span>
                             </div>
                             <div class="info-item">
-                                <span class="label">账号数量:</span>
+                                <span class="label">账号数量</span>
                                 <span id="db-accounts" class="value">-</span>
                             </div>
                             <div class="info-item">
-                                <span class="label">邮箱服务数量:</span>
+                                <span class="label">邮箱服务数量</span>
                                 <span id="db-services" class="value">-</span>
                             </div>
                             <div class="info-item">
-                                <span class="label">任务记录数量:</span>
+                                <span class="label">任务记录数量</span>
                                 <span id="db-tasks" class="value">-</span>
                             </div>
                         </div>
 
                         <div class="form-actions">
-                            <button class="btn btn-secondary" id="backup-btn">备份数据库</button>
-                            <button class="btn btn-warning" id="cleanup-btn">清理过期数据</button>
+                            <button class="btn btn-secondary" id="backup-btn">💾 备份数据库</button>
+                            <button class="btn btn-warning" id="cleanup-btn">🧹 清理过期数据</button>
                         </div>
                     </div>
                 </div>
@@ -249,7 +256,7 @@
     <div class="modal" id="add-service-modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>添加邮箱服务</h3>
+                <h3>➕ 添加邮箱服务</h3>
                 <button class="modal-close" id="close-service-modal">&times;</button>
             </div>
             <div class="modal-body">
@@ -265,7 +272,7 @@
 
                     <div class="form-group">
                         <label for="service-name">服务名称</label>
-                        <input type="text" id="service-name" name="name" required>
+                        <input type="text" id="service-name" name="name" required placeholder="例如：我的 Outlook 账号">
                     </div>
 
                     <div id="service-config-fields">
@@ -281,6 +288,7 @@
         </div>
     </div>
 
+    <script src="/static/js/utils.js"></script>
     <script src="/static/js/settings.js"></script>
 </body>
 </html>

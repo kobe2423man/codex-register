@@ -1,36 +1,37 @@
 /**
  * 账号管理页面 JavaScript
+ * 使用 utils.js 中的工具库
  */
-
-// API 基础路径
-const API_BASE = '/api';
 
 // 状态
 let currentPage = 1;
 let pageSize = 20;
 let totalAccounts = 0;
 let selectedAccounts = new Set();
+let isLoading = false;
 
 // DOM 元素
-const accountsTable = document.getElementById('accounts-table');
-const totalAccountsEl = document.getElementById('total-accounts');
-const activeAccountsEl = document.getElementById('active-accounts');
-const expiredAccountsEl = document.getElementById('expired-accounts');
-const failedAccountsEl = document.getElementById('failed-accounts');
-const filterStatus = document.getElementById('filter-status');
-const filterService = document.getElementById('filter-service');
-const searchInput = document.getElementById('search-input');
-const refreshBtn = document.getElementById('refresh-btn');
-const batchDeleteBtn = document.getElementById('batch-delete-btn');
-const exportBtn = document.getElementById('export-btn');
-const exportMenu = document.getElementById('export-menu');
-const selectAllCheckbox = document.getElementById('select-all');
-const prevPageBtn = document.getElementById('prev-page');
-const nextPageBtn = document.getElementById('next-page');
-const pageInfo = document.getElementById('page-info');
-const detailModal = document.getElementById('detail-modal');
-const modalBody = document.getElementById('modal-body');
-const closeModalBtn = document.getElementById('close-modal');
+const elements = {
+    table: document.getElementById('accounts-table'),
+    totalAccounts: document.getElementById('total-accounts'),
+    activeAccounts: document.getElementById('active-accounts'),
+    expiredAccounts: document.getElementById('expired-accounts'),
+    failedAccounts: document.getElementById('failed-accounts'),
+    filterStatus: document.getElementById('filter-status'),
+    filterService: document.getElementById('filter-service'),
+    searchInput: document.getElementById('search-input'),
+    refreshBtn: document.getElementById('refresh-btn'),
+    batchDeleteBtn: document.getElementById('batch-delete-btn'),
+    exportBtn: document.getElementById('export-btn'),
+    exportMenu: document.getElementById('export-menu'),
+    selectAll: document.getElementById('select-all'),
+    prevPage: document.getElementById('prev-page'),
+    nextPage: document.getElementById('next-page'),
+    pageInfo: document.getElementById('page-info'),
+    detailModal: document.getElementById('detail-modal'),
+    modalBody: document.getElementById('modal-body'),
+    closeModal: document.getElementById('close-modal')
+};
 
 // 初始化
 document.addEventListener('DOMContentLoaded', () => {
@@ -42,38 +43,44 @@ document.addEventListener('DOMContentLoaded', () => {
 // 事件监听
 function initEventListeners() {
     // 筛选
-    filterStatus.addEventListener('change', () => {
+    elements.filterStatus.addEventListener('change', () => {
         currentPage = 1;
         loadAccounts();
     });
 
-    filterService.addEventListener('change', () => {
+    elements.filterService.addEventListener('change', () => {
         currentPage = 1;
         loadAccounts();
     });
 
-    // 搜索
-    let searchTimeout;
-    searchInput.addEventListener('input', () => {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(() => {
-            currentPage = 1;
+    // 搜索（防抖）
+    elements.searchInput.addEventListener('input', debounce(() => {
+        currentPage = 1;
+        loadAccounts();
+    }, 300));
+
+    // 快捷键聚焦搜索
+    elements.searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            elements.searchInput.blur();
+            elements.searchInput.value = '';
             loadAccounts();
-        }, 300);
+        }
     });
 
     // 刷新
-    refreshBtn.addEventListener('click', () => {
+    elements.refreshBtn.addEventListener('click', () => {
         loadStats();
         loadAccounts();
+        toast.info('已刷新');
     });
 
     // 批量删除
-    batchDeleteBtn.addEventListener('click', handleBatchDelete);
+    elements.batchDeleteBtn.addEventListener('click', handleBatchDelete);
 
     // 全选
-    selectAllCheckbox.addEventListener('change', (e) => {
-        const checkboxes = accountsTable.querySelectorAll('input[type="checkbox"]');
+    elements.selectAll.addEventListener('change', (e) => {
+        const checkboxes = elements.table.querySelectorAll('input[type="checkbox"][data-id]');
         checkboxes.forEach(cb => {
             cb.checked = e.target.checked;
             const id = parseInt(cb.dataset.id);
@@ -87,124 +94,189 @@ function initEventListeners() {
     });
 
     // 分页
-    prevPageBtn.addEventListener('click', () => {
-        if (currentPage > 1) {
+    elements.prevPage.addEventListener('click', () => {
+        if (currentPage > 1 && !isLoading) {
             currentPage--;
             loadAccounts();
         }
     });
 
-    nextPageBtn.addEventListener('click', () => {
+    elements.nextPage.addEventListener('click', () => {
         const totalPages = Math.ceil(totalAccounts / pageSize);
-        if (currentPage < totalPages) {
+        if (currentPage < totalPages && !isLoading) {
             currentPage++;
             loadAccounts();
         }
     });
 
     // 导出
-    exportBtn.addEventListener('click', (e) => {
+    elements.exportBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        exportMenu.classList.toggle('active');
+        elements.exportMenu.classList.toggle('active');
     });
 
-    document.querySelectorAll('#export-menu .dropdown-item').forEach(item => {
-        item.addEventListener('click', (e) => {
-            e.preventDefault();
-            const format = e.target.dataset.format;
-            exportAccounts(format);
-            exportMenu.classList.remove('active');
-        });
+    delegate(elements.exportMenu, 'click', '.dropdown-item', (e, target) => {
+        e.preventDefault();
+        const format = target.dataset.format;
+        exportAccounts(format);
+        elements.exportMenu.classList.remove('active');
     });
 
     // 关闭模态框
-    closeModalBtn.addEventListener('click', () => {
-        detailModal.classList.remove('active');
+    elements.closeModal.addEventListener('click', () => {
+        elements.detailModal.classList.remove('active');
     });
 
-    detailModal.addEventListener('click', (e) => {
-        if (e.target === detailModal) {
-            detailModal.classList.remove('active');
+    elements.detailModal.addEventListener('click', (e) => {
+        if (e.target === elements.detailModal) {
+            elements.detailModal.classList.remove('active');
         }
     });
 
     // 点击其他地方关闭下拉菜单
     document.addEventListener('click', () => {
-        exportMenu.classList.remove('active');
+        elements.exportMenu.classList.remove('active');
     });
 }
 
 // 加载统计信息
 async function loadStats() {
     try {
-        const response = await fetch(`${API_BASE}/accounts/stats/summary`);
-        const data = await response.json();
+        const data = await api.get('/accounts/stats/summary');
 
-        totalAccountsEl.textContent = data.total || 0;
-        activeAccountsEl.textContent = data.by_status?.active || 0;
-        expiredAccountsEl.textContent = data.by_status?.expired || 0;
-        failedAccountsEl.textContent = data.by_status?.failed || 0;
+        elements.totalAccounts.textContent = format.number(data.total || 0);
+        elements.activeAccounts.textContent = format.number(data.by_status?.active || 0);
+        elements.expiredAccounts.textContent = format.number(data.by_status?.expired || 0);
+        elements.failedAccounts.textContent = format.number(data.by_status?.failed || 0);
+
+        // 添加动画效果
+        animateValue(elements.totalAccounts, data.total || 0);
     } catch (error) {
         console.error('加载统计信息失败:', error);
     }
 }
 
+// 数字动画
+function animateValue(element, value) {
+    element.style.transition = 'transform 0.2s ease';
+    element.style.transform = 'scale(1.1)';
+    setTimeout(() => {
+        element.style.transform = 'scale(1)';
+    }, 200);
+}
+
 // 加载账号列表
 async function loadAccounts() {
+    if (isLoading) return;
+    isLoading = true;
+
+    // 显示加载状态
+    elements.table.innerHTML = `
+        <tr>
+            <td colspan="7">
+                <div class="empty-state">
+                    <div class="skeleton skeleton-text" style="width: 60%;"></div>
+                    <div class="skeleton skeleton-text" style="width: 80%;"></div>
+                    <div class="skeleton skeleton-text" style="width: 40%;"></div>
+                </div>
+            </td>
+        </tr>
+    `;
+
     const params = new URLSearchParams({
         page: currentPage,
         page_size: pageSize,
     });
 
-    if (filterStatus.value) {
-        params.append('status', filterStatus.value);
+    if (elements.filterStatus.value) {
+        params.append('status', elements.filterStatus.value);
     }
 
-    if (filterService.value) {
-        params.append('email_service', filterService.value);
+    if (elements.filterService.value) {
+        params.append('email_service', elements.filterService.value);
     }
 
-    if (searchInput.value.trim()) {
-        params.append('search', searchInput.value.trim());
+    if (elements.searchInput.value.trim()) {
+        params.append('search', elements.searchInput.value.trim());
     }
 
     try {
-        const response = await fetch(`${API_BASE}/accounts?${params}`);
-        const data = await response.json();
-
+        const data = await api.get(`/accounts?${params}`);
         totalAccounts = data.total;
         renderAccounts(data.accounts);
         updatePagination();
     } catch (error) {
         console.error('加载账号列表失败:', error);
-        accountsTable.innerHTML = '<tr><td colspan="7" style="text-align: center;">加载失败</td></tr>';
+        elements.table.innerHTML = `
+            <tr>
+                <td colspan="7">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">❌</div>
+                        <div class="empty-state-title">加载失败</div>
+                        <div class="empty-state-description">请检查网络连接后重试</div>
+                    </div>
+                </td>
+            </tr>
+        `;
+    } finally {
+        isLoading = false;
     }
 }
 
 // 渲染账号列表
 function renderAccounts(accounts) {
     if (accounts.length === 0) {
-        accountsTable.innerHTML = '<tr><td colspan="7" style="text-align: center;">暂无数据</td></tr>';
+        elements.table.innerHTML = `
+            <tr>
+                <td colspan="7">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📭</div>
+                        <div class="empty-state-title">暂无数据</div>
+                        <div class="empty-state-description">没有找到符合条件的账号记录</div>
+                    </div>
+                </td>
+            </tr>
+        `;
         return;
     }
 
-    accountsTable.innerHTML = accounts.map(account => `
-        <tr>
-            <td><input type="checkbox" data-id="${account.id}" ${selectedAccounts.has(account.id) ? 'checked' : ''}></td>
-            <td>${account.id}</td>
-            <td>${escapeHtml(account.email)}</td>
-            <td>${escapeHtml(account.email_service)}</td>
-            <td><span class="status-badge ${account.status}">${getStatusText(account.status)}</span></td>
-            <td>${formatDate(account.registered_at)}</td>
+    elements.table.innerHTML = accounts.map(account => `
+        <tr data-id="${account.id}">
             <td>
-                <button class="btn btn-sm btn-secondary" onclick="viewAccount(${account.id})">查看</button>
-                <button class="btn btn-sm btn-danger" onclick="deleteAccount(${account.id}, '${escapeHtml(account.email)}')">删除</button>
+                <input type="checkbox" data-id="${account.id}"
+                    ${selectedAccounts.has(account.id) ? 'checked' : ''}>
+            </td>
+            <td>${account.id}</td>
+            <td>
+                <span class="email-cell" title="${escapeHtml(account.email)}">
+                    ${escapeHtml(account.email)}
+                </span>
+            </td>
+            <td>${getServiceTypeText(account.email_service)}</td>
+            <td>
+                <span class="status-badge ${getStatusClass('account', account.status)}">
+                    ${getStatusText('account', account.status)}
+                </span>
+            </td>
+            <td>${format.date(account.registered_at)}</td>
+            <td>
+                <div class="action-buttons">
+                    <button class="btn btn-ghost btn-sm" onclick="viewAccount(${account.id})" title="查看详情">
+                        👁️
+                    </button>
+                    <button class="btn btn-ghost btn-sm" onclick="copyEmail('${escapeHtml(account.email)}')" title="复制邮箱">
+                        📋
+                    </button>
+                    <button class="btn btn-ghost btn-sm" onclick="deleteAccount(${account.id}, '${escapeHtml(account.email)}')" title="删除">
+                        🗑️
+                    </button>
+                </div>
             </td>
         </tr>
     `).join('');
 
     // 绑定复选框事件
-    accountsTable.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    elements.table.querySelectorAll('input[type="checkbox"][data-id]').forEach(cb => {
         cb.addEventListener('change', (e) => {
             const id = parseInt(e.target.dataset.id);
             if (e.target.checked) {
@@ -219,91 +291,107 @@ function renderAccounts(accounts) {
 
 // 更新分页
 function updatePagination() {
-    const totalPages = Math.ceil(totalAccounts / pageSize);
+    const totalPages = Math.max(1, Math.ceil(totalAccounts / pageSize));
 
-    prevPageBtn.disabled = currentPage <= 1;
-    nextPageBtn.disabled = currentPage >= totalPages;
+    elements.prevPage.disabled = currentPage <= 1;
+    elements.nextPage.disabled = currentPage >= totalPages;
 
-    pageInfo.textContent = `第 ${currentPage} 页 / 共 ${totalPages} 页`;
+    elements.pageInfo.textContent = `第 ${currentPage} 页 / 共 ${totalPages} 页`;
 }
 
 // 更新批量操作按钮
 function updateBatchButtons() {
-    batchDeleteBtn.disabled = selectedAccounts.size === 0;
+    const count = selectedAccounts.size;
+    elements.batchDeleteBtn.disabled = count === 0;
+    elements.batchDeleteBtn.textContent = count > 0 ? `🗑️ 删除选中 (${count})` : '🗑️ 批量删除';
 }
 
 // 查看账号详情
 async function viewAccount(id) {
     try {
-        const response = await fetch(`${API_BASE}/accounts/${id}`);
-        const account = await response.json();
+        const account = await api.get(`/accounts/${id}`);
+        const tokens = await api.get(`/accounts/${id}/tokens`);
 
-        const tokensResponse = await fetch(`${API_BASE}/accounts/${id}/tokens`);
-        const tokens = await tokensResponse.json();
-
-        modalBody.innerHTML = `
+        elements.modalBody.innerHTML = `
             <div class="info-grid">
                 <div class="info-item">
                     <span class="label">邮箱</span>
-                    <span class="value">${escapeHtml(account.email)}</span>
+                    <span class="value">
+                        ${escapeHtml(account.email)}
+                        <button class="btn btn-ghost btn-sm" onclick="copyToClipboard('${escapeHtml(account.email)}')" title="复制">
+                            📋
+                        </button>
+                    </span>
                 </div>
                 <div class="info-item">
                     <span class="label">邮箱服务</span>
-                    <span class="value">${escapeHtml(account.email_service)}</span>
+                    <span class="value">${getServiceTypeText(account.email_service)}</span>
                 </div>
                 <div class="info-item">
                     <span class="label">状态</span>
-                    <span class="value">${getStatusText(account.status)}</span>
+                    <span class="value">
+                        <span class="status-badge ${getStatusClass('account', account.status)}">
+                            ${getStatusText('account', account.status)}
+                        </span>
+                    </span>
                 </div>
                 <div class="info-item">
                     <span class="label">注册时间</span>
-                    <span class="value">${formatDate(account.registered_at)}</span>
+                    <span class="value">${format.date(account.registered_at)}</span>
                 </div>
-                <div class="info-item">
+                <div class="info-item" style="grid-column: span 2;">
                     <span class="label">Account ID</span>
-                    <span class="value">${escapeHtml(account.account_id || '-')}</span>
+                    <span class="value" style="font-size: 0.75rem; word-break: break-all;">
+                        ${escapeHtml(account.account_id || '-')}
+                    </span>
                 </div>
-                <div class="info-item">
+                <div class="info-item" style="grid-column: span 2;">
                     <span class="label">Workspace ID</span>
-                    <span class="value">${escapeHtml(account.workspace_id || '-')}</span>
+                    <span class="value" style="font-size: 0.75rem; word-break: break-all;">
+                        ${escapeHtml(account.workspace_id || '-')}
+                    </span>
                 </div>
-                <div class="info-item">
+                <div class="info-item" style="grid-column: span 2;">
                     <span class="label">Access Token</span>
-                    <span class="value" style="font-size: 0.75rem; word-break: break-all;">${escapeHtml(tokens.access_token || '-')}</span>
+                    <div class="value" style="font-size: 0.7rem; word-break: break-all; font-family: var(--font-mono); background: var(--surface-hover); padding: 8px; border-radius: 4px;">
+                        ${escapeHtml(tokens.access_token || '-')}
+                        ${tokens.access_token ? `<button class="btn btn-ghost btn-sm" onclick="copyToClipboard('${escapeHtml(tokens.access_token)}')" style="margin-left: 8px;">📋</button>` : ''}
+                    </div>
                 </div>
-                <div class="info-item">
+                <div class="info-item" style="grid-column: span 2;">
                     <span class="label">Refresh Token</span>
-                    <span class="value" style="font-size: 0.75rem; word-break: break-all;">${escapeHtml(tokens.refresh_token || '-')}</span>
+                    <div class="value" style="font-size: 0.7rem; word-break: break-all; font-family: var(--font-mono); background: var(--surface-hover); padding: 8px; border-radius: 4px;">
+                        ${escapeHtml(tokens.refresh_token || '-')}
+                        ${tokens.refresh_token ? `<button class="btn btn-ghost btn-sm" onclick="copyToClipboard('${escapeHtml(tokens.refresh_token)}')" style="margin-left: 8px;">📋</button>` : ''}
+                    </div>
                 </div>
             </div>
         `;
 
-        detailModal.classList.add('active');
+        elements.detailModal.classList.add('active');
     } catch (error) {
-        alert('加载账号详情失败: ' + error.message);
+        toast.error('加载账号详情失败: ' + error.message);
     }
+}
+
+// 复制邮箱
+function copyEmail(email) {
+    copyToClipboard(email);
 }
 
 // 删除账号
 async function deleteAccount(id, email) {
-    if (!confirm(`确定要删除账号 ${email} 吗？`)) {
-        return;
-    }
+    const confirmed = await confirm(`确定要删除账号 ${email} 吗？此操作不可恢复。`);
+    if (!confirmed) return;
 
     try {
-        const response = await fetch(`${API_BASE}/accounts/${id}`, {
-            method: 'DELETE',
-        });
-
-        if (response.ok) {
-            loadStats();
-            loadAccounts();
-        } else {
-            const data = await response.json();
-            alert('删除失败: ' + (data.detail || '未知错误'));
-        }
+        await api.delete(`/accounts/${id}`);
+        toast.success('账号已删除');
+        selectedAccounts.delete(id);
+        loadStats();
+        loadAccounts();
     } catch (error) {
-        alert('删除失败: ' + error.message);
+        toast.error('删除失败: ' + error.message);
     }
 }
 
@@ -311,33 +399,20 @@ async function deleteAccount(id, email) {
 async function handleBatchDelete() {
     if (selectedAccounts.size === 0) return;
 
-    if (!confirm(`确定要删除选中的 ${selectedAccounts.size} 个账号吗？`)) {
-        return;
-    }
+    const confirmed = await confirm(`确定要删除选中的 ${selectedAccounts.size} 个账号吗？此操作不可恢复。`);
+    if (!confirmed) return;
 
     try {
-        const response = await fetch(`${API_BASE}/accounts/batch-delete`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                ids: Array.from(selectedAccounts),
-            }),
+        const result = await api.post('/accounts/batch-delete', {
+            ids: Array.from(selectedAccounts)
         });
 
-        const data = await response.json();
-
-        if (response.ok) {
-            alert(`成功删除 ${data.deleted_count} 个账号`);
-            selectedAccounts.clear();
-            loadStats();
-            loadAccounts();
-        } else {
-            alert('删除失败: ' + (data.detail || '未知错误'));
-        }
+        toast.success(`成功删除 ${result.deleted_count} 个账号`);
+        selectedAccounts.clear();
+        loadStats();
+        loadAccounts();
     } catch (error) {
-        alert('删除失败: ' + error.message);
+        toast.error('删除失败: ' + error.message);
     }
 }
 
@@ -345,37 +420,22 @@ async function handleBatchDelete() {
 function exportAccounts(format) {
     const params = new URLSearchParams();
 
-    if (filterStatus.value) {
-        params.append('status', filterStatus.value);
+    if (elements.filterStatus.value) {
+        params.append('status', elements.filterStatus.value);
     }
 
-    if (filterService.value) {
-        params.append('email_service', filterService.value);
+    if (elements.filterService.value) {
+        params.append('email_service', elements.filterService.value);
     }
 
-    window.location.href = `${API_BASE}/accounts/export/${format}?${params}`;
+    window.location.href = `/api/accounts/export/${format}?${params}`;
+    toast.info('正在导出...');
 }
 
-// 工具函数
+// HTML 转义
 function escapeHtml(text) {
     if (!text) return '';
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
-}
-
-function getStatusText(status) {
-    const statusMap = {
-        'active': '活跃',
-        'expired': '过期',
-        'banned': '封禁',
-        'failed': '失败',
-    };
-    return statusMap[status] || status;
-}
-
-function formatDate(dateStr) {
-    if (!dateStr) return '-';
-    const date = new Date(dateStr);
-    return date.toLocaleString('zh-CN');
 }

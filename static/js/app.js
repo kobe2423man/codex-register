@@ -1,9 +1,7 @@
 /**
  * 注册页面 JavaScript
+ * 使用 utils.js 中的工具库
  */
-
-// API 基础路径
-const API_BASE = '/api';
 
 // 状态
 let currentTask = null;
@@ -11,44 +9,198 @@ let currentBatch = null;
 let logPollingInterval = null;
 let batchPollingInterval = null;
 let isBatchMode = false;
+let availableServices = {
+    tempmail: { available: true, services: [] },
+    outlook: { available: false, services: [] },
+    custom_domain: { available: false, services: [] }
+};
 
 // DOM 元素
-const registrationForm = document.getElementById('registration-form');
-const emailServiceSelect = document.getElementById('email-service');
-const proxyInput = document.getElementById('proxy');
-const regModeSelect = document.getElementById('reg-mode');
-const batchCountGroup = document.getElementById('batch-count-group');
-const batchCountInput = document.getElementById('batch-count');
-const batchOptions = document.getElementById('batch-options');
-const intervalMinInput = document.getElementById('interval-min');
-const intervalMaxInput = document.getElementById('interval-max');
-const startBtn = document.getElementById('start-btn');
-const cancelBtn = document.getElementById('cancel-btn');
-const taskStatusCard = document.getElementById('task-status-card');
-const batchStatusCard = document.getElementById('batch-status-card');
-const consoleLog = document.getElementById('console-log');
-const clearLogBtn = document.getElementById('clear-log-btn');
+const elements = {
+    form: document.getElementById('registration-form'),
+    emailService: document.getElementById('email-service'),
+    proxy: document.getElementById('proxy'),
+    regMode: document.getElementById('reg-mode'),
+    batchCountGroup: document.getElementById('batch-count-group'),
+    batchCount: document.getElementById('batch-count'),
+    batchOptions: document.getElementById('batch-options'),
+    intervalMin: document.getElementById('interval-min'),
+    intervalMax: document.getElementById('interval-max'),
+    startBtn: document.getElementById('start-btn'),
+    cancelBtn: document.getElementById('cancel-btn'),
+    taskStatusCard: document.getElementById('task-status-card'),
+    batchStatusCard: document.getElementById('batch-status-card'),
+    consoleLog: document.getElementById('console-log'),
+    clearLogBtn: document.getElementById('clear-log-btn'),
+    // 任务状态
+    taskId: document.getElementById('task-id'),
+    taskEmail: document.getElementById('task-email'),
+    taskStatus: document.getElementById('task-status'),
+    taskService: document.getElementById('task-service'),
+    taskStatusBadge: document.getElementById('task-status-badge'),
+    // 批量状态
+    batchProgress: document.getElementById('batch-progress'),
+    progressBar: document.getElementById('progress-bar'),
+    batchSuccess: document.getElementById('batch-success'),
+    batchFailed: document.getElementById('batch-failed'),
+    batchRemaining: document.getElementById('batch-remaining')
+};
 
 // 初始化
 document.addEventListener('DOMContentLoaded', () => {
     initEventListeners();
+    loadSavedProxy();
+    loadAvailableServices();
 });
 
 // 事件监听
 function initEventListeners() {
     // 注册表单提交
-    registrationForm.addEventListener('submit', handleStartRegistration);
+    elements.form.addEventListener('submit', handleStartRegistration);
 
     // 注册模式切换
-    regModeSelect.addEventListener('change', handleModeChange);
+    elements.regMode.addEventListener('change', handleModeChange);
+
+    // 邮箱服务切换
+    elements.emailService.addEventListener('change', handleServiceChange);
 
     // 取消按钮
-    cancelBtn.addEventListener('click', handleCancelTask);
+    elements.cancelBtn.addEventListener('click', handleCancelTask);
 
     // 清空日志
-    clearLogBtn.addEventListener('click', () => {
-        consoleLog.innerHTML = '<div class="log-line info">[*] 日志已清空</div>';
+    elements.clearLogBtn.addEventListener('click', () => {
+        elements.consoleLog.innerHTML = '<div class="log-line info">[系统] 日志已清空</div>';
     });
+}
+
+// 加载保存的代理设置
+async function loadSavedProxy() {
+    try {
+        const settings = await api.get('/settings');
+        if (settings.proxy?.host) {
+            elements.proxy.value = `${settings.proxy.type}://${settings.proxy.host}:${settings.proxy.port}`;
+        }
+    } catch (error) {
+        // 忽略错误
+    }
+}
+
+// 加载可用的邮箱服务
+async function loadAvailableServices() {
+    try {
+        const data = await api.get('/registration/available-services');
+        availableServices = data;
+
+        // 更新邮箱服务选择框
+        updateEmailServiceOptions();
+
+        addLog('info', '[系统] 邮箱服务列表已加载');
+    } catch (error) {
+        console.error('加载邮箱服务列表失败:', error);
+        addLog('warning', '[警告] 加载邮箱服务列表失败');
+    }
+}
+
+// 更新邮箱服务选择框
+function updateEmailServiceOptions() {
+    const select = elements.emailService;
+    select.innerHTML = '';
+
+    // Tempmail
+    if (availableServices.tempmail.available) {
+        const optgroup = document.createElement('optgroup');
+        optgroup.label = '🌐 临时邮箱';
+
+        availableServices.tempmail.services.forEach(service => {
+            const option = document.createElement('option');
+            option.value = `tempmail:${service.id || 'default'}`;
+            option.textContent = service.name;
+            option.dataset.type = 'tempmail';
+            optgroup.appendChild(option);
+        });
+
+        select.appendChild(optgroup);
+    }
+
+    // Outlook
+    if (availableServices.outlook.available) {
+        const optgroup = document.createElement('optgroup');
+        optgroup.label = `📧 Outlook (${availableServices.outlook.count} 个账户)`;
+
+        availableServices.outlook.services.forEach(service => {
+            const option = document.createElement('option');
+            option.value = `outlook:${service.id}`;
+            option.textContent = service.name + (service.has_oauth ? ' (OAuth)' : '');
+            option.dataset.type = 'outlook';
+            option.dataset.serviceId = service.id;
+            optgroup.appendChild(option);
+        });
+
+        select.appendChild(optgroup);
+    } else {
+        const optgroup = document.createElement('optgroup');
+        optgroup.label = '📧 Outlook (未配置)';
+
+        const option = document.createElement('option');
+        option.value = '';
+        option.textContent = '请先在设置中导入账户';
+        option.disabled = true;
+        optgroup.appendChild(option);
+
+        select.appendChild(optgroup);
+    }
+
+    // 自定义域名
+    if (availableServices.custom_domain.available) {
+        const optgroup = document.createElement('optgroup');
+        optgroup.label = `🔗 自定义域名 (${availableServices.custom_domain.count} 个服务)`;
+
+        availableServices.custom_domain.services.forEach(service => {
+            const option = document.createElement('option');
+            option.value = `custom_domain:${service.id || 'default'}`;
+            option.textContent = service.name;
+            option.dataset.type = 'custom_domain';
+            if (service.id) {
+                option.dataset.serviceId = service.id;
+            }
+            optgroup.appendChild(option);
+        });
+
+        select.appendChild(optgroup);
+    } else {
+        const optgroup = document.createElement('optgroup');
+        optgroup.label = '🔗 自定义域名 (未配置)';
+
+        const option = document.createElement('option');
+        option.value = '';
+        option.textContent = '请先在设置中添加服务';
+        option.disabled = true;
+        optgroup.appendChild(option);
+
+        select.appendChild(optgroup);
+    }
+}
+
+// 处理邮箱服务切换
+function handleServiceChange(e) {
+    const value = e.target.value;
+    if (!value) return;
+
+    const [type, id] = value.split(':');
+    const selectedOption = e.target.options[e.target.selectedIndex];
+
+    // 显示服务信息
+    if (type === 'outlook') {
+        const service = availableServices.outlook.services.find(s => s.id == id);
+        if (service) {
+            addLog('info', `[系统] 已选择 Outlook 账户: ${service.name}`);
+        }
+    } else if (type === 'custom_domain') {
+        const service = availableServices.custom_domain.services.find(s => s.id == id);
+        if (service) {
+            addLog('info', `[系统] 已选择自定义域名服务: ${service.name}`);
+        }
+    }
 }
 
 // 模式切换
@@ -56,105 +208,96 @@ function handleModeChange(e) {
     const mode = e.target.value;
     isBatchMode = mode === 'batch';
 
-    batchCountGroup.style.display = isBatchMode ? 'block' : 'none';
-    batchOptions.style.display = isBatchMode ? 'block' : 'none';
+    elements.batchCountGroup.style.display = isBatchMode ? 'block' : 'none';
+    elements.batchOptions.style.display = isBatchMode ? 'block' : 'none';
 }
 
 // 开始注册
 async function handleStartRegistration(e) {
     e.preventDefault();
 
-    const emailService = emailServiceSelect.value;
-    const proxy = proxyInput.value.trim() || null;
+    const selectedValue = elements.emailService.value;
+    if (!selectedValue) {
+        toast.error('请选择一个邮箱服务');
+        return;
+    }
+
+    const [emailServiceType, serviceId] = selectedValue.split(':');
+    const proxy = elements.proxy.value.trim() || null;
 
     // 禁用开始按钮
-    startBtn.disabled = true;
-    cancelBtn.disabled = false;
+    elements.startBtn.disabled = true;
+    elements.cancelBtn.disabled = false;
 
     // 清空日志
-    consoleLog.innerHTML = '';
+    elements.consoleLog.innerHTML = '';
+
+    // 构建请求数据
+    const requestData = {
+        email_service_type: emailServiceType,
+        proxy: proxy
+    };
+
+    // 如果选择了数据库中的服务，传递 service_id
+    if (serviceId && serviceId !== 'default') {
+        requestData.email_service_id = parseInt(serviceId);
+    }
 
     if (isBatchMode) {
-        await handleBatchRegistration(emailService, proxy);
+        await handleBatchRegistration(requestData);
     } else {
-        await handleSingleRegistration(emailService, proxy);
+        await handleSingleRegistration(requestData);
     }
 }
 
 // 单次注册
-async function handleSingleRegistration(emailService, proxy) {
-    addLog('info', '[*] 正在启动注册任务...');
+async function handleSingleRegistration(requestData) {
+    addLog('info', '[系统] 正在启动注册任务...');
 
     try {
-        const response = await fetch(`${API_BASE}/registration/start`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                email_service_type: emailService,
-                proxy: proxy,
-            }),
-        });
+        const data = await api.post('/registration/start', requestData);
 
-        const data = await response.json();
+        currentTask = data;
+        addLog('info', `[系统] 任务已创建: ${data.task_uuid}`);
+        showTaskStatus(data);
+        updateTaskStatus('running');
 
-        if (response.ok) {
-            currentTask = data;
-            addLog('info', `[*] 任务已创建: ${data.task_uuid}`);
-            showTaskStatus(data);
+        // 开始轮询日志
+        startLogPolling(data.task_uuid);
 
-            // 开始轮询日志
-            startLogPolling(data.task_uuid);
-        } else {
-            addLog('error', `[Error] 启动失败: ${data.detail || '未知错误'}`);
-            resetButtons();
-        }
     } catch (error) {
-        addLog('error', `[Error] 网络错误: ${error.message}`);
+        addLog('error', `[错误] 启动失败: ${error.message}`);
+        toast.error(error.message);
         resetButtons();
     }
 }
 
 // 批量注册
-async function handleBatchRegistration(emailService, proxy) {
-    const count = parseInt(batchCountInput.value) || 5;
-    const intervalMin = parseInt(intervalMinInput.value) || 5;
-    const intervalMax = parseInt(intervalMaxInput.value) || 30;
+async function handleBatchRegistration(requestData) {
+    const count = parseInt(elements.batchCount.value) || 5;
+    const intervalMin = parseInt(elements.intervalMin.value) || 5;
+    const intervalMax = parseInt(elements.intervalMax.value) || 30;
 
-    addLog('info', `[*] 正在启动批量注册任务 (数量: ${count})...`);
+    requestData.count = count;
+    requestData.interval_min = intervalMin;
+    requestData.interval_max = intervalMax;
+
+    addLog('info', `[系统] 正在启动批量注册任务 (数量: ${count})...`);
 
     try {
-        const response = await fetch(`${API_BASE}/registration/batch`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                count: count,
-                email_service_type: emailService,
-                proxy: proxy,
-                interval_min: intervalMin,
-                interval_max: intervalMax,
-            }),
-        });
+        const data = await api.post('/registration/batch', requestData);
 
-        const data = await response.json();
+        currentBatch = data;
+        addLog('info', `[系统] 批量任务已创建: ${data.batch_id}`);
+        addLog('info', `[系统] 共 ${data.count} 个任务已加入队列`);
+        showBatchStatus(data);
 
-        if (response.ok) {
-            currentBatch = data;
-            addLog('info', `[*] 批量任务已创建: ${data.batch_id}`);
-            addLog('info', `[*] 共 ${data.count} 个任务已加入队列`);
-            showBatchStatus(data);
+        // 开始轮询批量状态
+        startBatchPolling(data.batch_id);
 
-            // 开始轮询批量状态
-            startBatchPolling(data.batch_id);
-        } else {
-            addLog('error', `[Error] 启动失败: ${data.detail || '未知错误'}`);
-            resetButtons();
-        }
     } catch (error) {
-        addLog('error', `[Error] 网络错误: ${error.message}`);
+        addLog('error', `[错误] 启动失败: ${error.message}`);
+        toast.error(error.message);
         resetButtons();
     }
 }
@@ -163,68 +306,70 @@ async function handleBatchRegistration(emailService, proxy) {
 async function handleCancelTask() {
     if (isBatchMode && currentBatch) {
         try {
-            const response = await fetch(`${API_BASE}/registration/batch/${currentBatch.batch_id}/cancel`, {
-                method: 'POST',
-            });
-
-            if (response.ok) {
-                addLog('warning', '[!] 批量任务取消请求已提交');
-                stopBatchPolling();
-                resetButtons();
-            }
+            await api.post(`/registration/batch/${currentBatch.batch_id}/cancel`);
+            addLog('warning', '[警告] 批量任务取消请求已提交');
+            toast.info('任务取消请求已提交');
+            stopBatchPolling();
+            resetButtons();
         } catch (error) {
-            addLog('error', `[Error] 取消失败: ${error.message}`);
+            addLog('error', `[错误] 取消失败: ${error.message}`);
+            toast.error(error.message);
         }
     } else if (currentTask) {
         try {
-            const response = await fetch(`${API_BASE}/registration/tasks/${currentTask.task_uuid}/cancel`, {
-                method: 'POST',
-            });
-
-            if (response.ok) {
-                addLog('warning', '[!] 任务已取消');
-                stopLogPolling();
-                resetButtons();
-            }
+            await api.post(`/registration/tasks/${currentTask.task_uuid}/cancel`);
+            addLog('warning', '[警告] 任务已取消');
+            toast.info('任务已取消');
+            stopLogPolling();
+            resetButtons();
         } catch (error) {
-            addLog('error', `[Error] 取消失败: ${error.message}`);
+            addLog('error', `[错误] 取消失败: ${error.message}`);
+            toast.error(error.message);
         }
     }
 }
 
 // 开始轮询日志
 function startLogPolling(taskUuid) {
-    let lastLogLine = '';
+    let lastLogIndex = 0;
 
     logPollingInterval = setInterval(async () => {
         try {
-            const response = await fetch(`${API_BASE}/registration/tasks/${taskUuid}/logs`);
-            const data = await response.json();
+            const data = await api.get(`/registration/tasks/${taskUuid}/logs`);
 
-            if (response.ok) {
-                // 更新任务状态
-                updateTaskStatus(data.status);
+            // 更新任务状态
+            updateTaskStatus(data.status);
 
-                // 添加新日志
-                const logs = data.logs || [];
-                logs.forEach(log => {
-                    if (log !== lastLogLine) {
-                        const logType = getLogType(log);
-                        addLog(logType, log);
-                        lastLogLine = log;
-                    }
-                });
+            // 更新邮箱信息
+            if (data.email) {
+                elements.taskEmail.textContent = data.email;
+            }
+            if (data.email_service) {
+                elements.taskService.textContent = getServiceTypeText(data.email_service);
+            }
 
-                // 检查任务是否完成
-                if (['completed', 'failed', 'cancelled'].includes(data.status)) {
-                    stopLogPolling();
-                    resetButtons();
+            // 添加新日志
+            const logs = data.logs || [];
+            for (let i = lastLogIndex; i < logs.length; i++) {
+                const log = logs[i];
+                const logType = getLogType(log);
+                addLog(logType, log);
+            }
+            lastLogIndex = logs.length;
 
-                    if (data.status === 'completed') {
-                        addLog('success', '[*] 注册成功！');
-                    } else if (data.status === 'failed') {
-                        addLog('error', '[Error] 注册失败');
-                    }
+            // 检查任务是否完成
+            if (['completed', 'failed', 'cancelled'].includes(data.status)) {
+                stopLogPolling();
+                resetButtons();
+
+                if (data.status === 'completed') {
+                    addLog('success', '[成功] 注册成功！');
+                    toast.success('注册成功！');
+                } else if (data.status === 'failed') {
+                    addLog('error', '[错误] 注册失败');
+                    toast.error('注册失败');
+                } else if (data.status === 'cancelled') {
+                    addLog('warning', '[警告] 任务已取消');
                 }
             }
         } catch (error) {
@@ -245,18 +390,19 @@ function stopLogPolling() {
 function startBatchPolling(batchId) {
     batchPollingInterval = setInterval(async () => {
         try {
-            const response = await fetch(`${API_BASE}/registration/batch/${batchId}`);
-            const data = await response.json();
+            const data = await api.get(`/registration/batch/${batchId}`);
+            updateBatchProgress(data);
 
-            if (response.ok) {
-                updateBatchProgress(data);
+            // 检查是否完成
+            if (data.finished) {
+                stopBatchPolling();
+                resetButtons();
 
-                // 检查是否完成
-                if (data.finished) {
-                    stopBatchPolling();
-                    resetButtons();
-
-                    addLog('info', `[*] 批量任务完成！成功: ${data.success}, 失败: ${data.failed}`);
+                addLog('info', `[完成] 批量任务完成！成功: ${data.success}, 失败: ${data.failed}`);
+                if (data.success > 0) {
+                    toast.success(`批量注册完成，成功 ${data.success} 个`);
+                } else {
+                    toast.warning('批量注册完成，但没有成功注册任何账号');
                 }
             }
         } catch (error) {
@@ -275,54 +421,67 @@ function stopBatchPolling() {
 
 // 显示任务状态
 function showTaskStatus(task) {
-    taskStatusCard.style.display = 'block';
-    batchStatusCard.style.display = 'none';
-    document.getElementById('task-id').textContent = task.task_uuid;
-    updateTaskStatus(task.status);
+    elements.taskStatusCard.style.display = 'block';
+    elements.batchStatusCard.style.display = 'none';
+    elements.taskId.textContent = task.task_uuid;
+    elements.taskEmail.textContent = '-';
+    elements.taskService.textContent = '-';
 }
 
 // 更新任务状态
 function updateTaskStatus(status) {
-    const statusBadge = document.getElementById('task-status-badge');
-    const statusText = document.getElementById('task-status');
-
-    const statusMap = {
-        'pending': { text: '等待中', class: '' },
-        'running': { text: '运行中', class: 'running' },
-        'completed': { text: '已完成', class: 'completed' },
-        'failed': { text: '失败', class: 'failed' },
-        'cancelled': { text: '已取消', class: '' },
+    const statusInfo = {
+        pending: { text: '等待中', class: 'pending' },
+        running: { text: '运行中', class: 'running' },
+        completed: { text: '已完成', class: 'completed' },
+        failed: { text: '失败', class: 'failed' },
+        cancelled: { text: '已取消', class: 'disabled' }
     };
 
-    const info = statusMap[status] || { text: status, class: '' };
-    statusBadge.textContent = info.text;
-    statusBadge.className = 'status-badge ' + info.class;
-    statusText.textContent = info.text;
+    const info = statusInfo[status] || { text: status, class: '' };
+    elements.taskStatusBadge.textContent = info.text;
+    elements.taskStatusBadge.className = `status-badge ${info.class}`;
+    elements.taskStatus.textContent = info.text;
 }
 
 // 显示批量状态
 function showBatchStatus(batch) {
-    batchStatusCard.style.display = 'block';
-    taskStatusCard.style.display = 'none';
-    document.getElementById('batch-progress').textContent = `0/${batch.count}`;
-    document.getElementById('progress-bar').style.width = '0%';
-    document.getElementById('batch-success').textContent = '0';
-    document.getElementById('batch-failed').textContent = '0';
-    document.getElementById('batch-remaining').textContent = batch.count;
+    elements.batchStatusCard.style.display = 'block';
+    elements.taskStatusCard.style.display = 'none';
+    elements.batchProgress.textContent = `0/${batch.count}`;
+    elements.progressBar.style.width = '0%';
+    elements.batchSuccess.textContent = '0';
+    elements.batchFailed.textContent = '0';
+    elements.batchRemaining.textContent = batch.count;
+
+    // 重置计数器
+    elements.batchSuccess.dataset.last = '0';
+    elements.batchFailed.dataset.last = '0';
 }
 
 // 更新批量进度
 function updateBatchProgress(data) {
-    const progress = data.completed / data.total * 100;
-    document.getElementById('batch-progress').textContent = data.progress;
-    document.getElementById('progress-bar').style.width = `${progress}%`;
-    document.getElementById('batch-success').textContent = data.success;
-    document.getElementById('batch-failed').textContent = data.failed;
-    document.getElementById('batch-remaining').textContent = data.total - data.completed;
+    const progress = (data.completed / data.total * 100).toFixed(0);
+    elements.batchProgress.textContent = data.progress || `${data.completed}/${data.total}`;
+    elements.progressBar.style.width = `${progress}%`;
+    elements.batchSuccess.textContent = data.success;
+    elements.batchFailed.textContent = data.failed;
+    elements.batchRemaining.textContent = data.total - data.completed;
 
-    // 记录日志
+    // 记录日志（避免重复）
     if (data.completed > 0) {
-        addLog('info', `[*] 进度: ${data.progress}, 成功: ${data.success}, 失败: ${data.failed}`);
+        const lastSuccess = parseInt(elements.batchSuccess.dataset.last || '0');
+        const lastFailed = parseInt(elements.batchFailed.dataset.last || '0');
+
+        if (data.success > lastSuccess) {
+            addLog('success', `[成功] 第 ${data.success} 个账号注册成功`);
+        }
+        if (data.failed > lastFailed) {
+            addLog('error', `[失败] 第 ${data.failed} 个账号注册失败`);
+        }
+
+        elements.batchSuccess.dataset.last = data.success;
+        elements.batchFailed.dataset.last = data.failed;
     }
 }
 
@@ -330,22 +489,39 @@ function updateBatchProgress(data) {
 function addLog(type, message) {
     const line = document.createElement('div');
     line.className = `log-line ${type}`;
-    line.textContent = message;
-    consoleLog.appendChild(line);
+
+    // 添加时间戳
+    const timestamp = new Date().toLocaleTimeString('zh-CN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+    });
+
+    line.innerHTML = `<span class="timestamp">[${timestamp}]</span>${escapeHtml(message)}`;
+    elements.consoleLog.appendChild(line);
 
     // 自动滚动到底部
-    consoleLog.scrollTop = consoleLog.scrollHeight;
+    elements.consoleLog.scrollTop = elements.consoleLog.scrollHeight;
+
+    // 限制日志行数
+    const lines = elements.consoleLog.querySelectorAll('.log-line');
+    if (lines.length > 500) {
+        lines[0].remove();
+    }
 }
 
 // 获取日志类型
 function getLogType(log) {
-    if (log.includes('[Error]') || log.includes('失败') || log.includes('错误')) {
+    if (typeof log !== 'string') return 'info';
+
+    const lowerLog = log.toLowerCase();
+    if (lowerLog.includes('error') || lowerLog.includes('失败') || lowerLog.includes('错误')) {
         return 'error';
     }
-    if (log.includes('[!]') || log.includes('警告')) {
+    if (lowerLog.includes('warning') || lowerLog.includes('警告')) {
         return 'warning';
     }
-    if (log.includes('成功') || log.includes('完成')) {
+    if (lowerLog.includes('success') || lowerLog.includes('成功') || lowerLog.includes('完成')) {
         return 'success';
     }
     return 'info';
@@ -353,8 +529,16 @@ function getLogType(log) {
 
 // 重置按钮状态
 function resetButtons() {
-    startBtn.disabled = false;
-    cancelBtn.disabled = true;
+    elements.startBtn.disabled = false;
+    elements.cancelBtn.disabled = true;
     currentTask = null;
     currentBatch = null;
+}
+
+// HTML 转义
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
