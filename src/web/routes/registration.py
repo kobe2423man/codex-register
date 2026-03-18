@@ -347,18 +347,22 @@ def _run_sync_registration_task(task_uuid: str, email_service_type: str, proxy: 
                         saved_account = db.query(AccountModel).filter_by(email=result.email).first()
                         if saved_account and saved_account.access_token:
                             token_data = generate_token_json(saved_account)
-                            # 解析指定 CPA 服务
+                            # 解析指定 CPA 服务，未指定则取第一个启用的服务
                             _cpa_api_url = None
                             _cpa_api_token = None
+                            _svc = None
                             if cpa_service_id:
                                 try:
                                     _svc = crud.get_cpa_service_by_id(db, cpa_service_id)
-                                    if _svc:
-                                        _cpa_api_url = _svc.api_url
-                                        _cpa_api_token = _svc.api_token
-                                        log_callback(f"[CPA] 使用服务: {_svc.name}")
                                 except Exception:
                                     pass
+                            if _svc is None:
+                                svcs = crud.get_cpa_services(db, enabled=True)
+                                _svc = svcs[0] if svcs else None
+                            if _svc:
+                                _cpa_api_url = _svc.api_url
+                                _cpa_api_token = _svc.api_token
+                                log_callback(f"[CPA] 使用服务: {_svc.name}")
                             cpa_success, cpa_msg = upload_to_cpa(token_data, api_url=_cpa_api_url, api_token=_cpa_api_token)
                             if cpa_success:
                                 saved_account.cpa_uploaded = True

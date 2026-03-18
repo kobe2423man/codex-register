@@ -110,6 +110,7 @@ class DatabaseSessionManager:
             ("accounts", "subscription_type", "VARCHAR(20)"),
             ("accounts", "subscription_at", "DATETIME"),
             ("accounts", "cookies", "TEXT"),
+            ("proxies", "is_default", "BOOLEAN DEFAULT 0"),
         ]
 
         # 确保新表存在（create_tables 已处理，此处兜底）

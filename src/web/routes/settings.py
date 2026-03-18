@@ -111,101 +111,6 @@ async def get_all_settings():
     }
 
 
-@router.get("/proxy")
-async def get_proxy_settings():
-    """获取代理设置"""
-    settings = get_settings()
-
-    return {
-        "enabled": settings.proxy_enabled,
-        "type": settings.proxy_type,
-        "host": settings.proxy_host,
-        "port": settings.proxy_port,
-        "username": settings.proxy_username,
-        "has_password": bool(settings.proxy_password),
-        "proxy_url": settings.proxy_url,
-    }
-
-
-@router.post("/proxy")
-async def update_proxy_settings(request: ProxySettings):
-    """更新代理设置"""
-    update_dict = {
-        "proxy_enabled": request.enabled,
-        "proxy_type": request.type,
-        "proxy_host": request.host,
-        "proxy_port": request.port,
-        "proxy_username": request.username,
-    }
-
-    if request.password:
-        update_dict["proxy_password"] = request.password
-
-    update_settings(**update_dict)
-
-    return {"success": True, "message": "代理设置已更新"}
-
-
-@router.post("/proxy/test")
-async def test_proxy_settings(request: ProxySettings):
-    """测试代理连接"""
-    import time
-    from curl_cffi import requests as cffi_requests
-
-    # 构建代理 URL
-    if request.type == "http":
-        scheme = "http"
-    elif request.type == "socks5":
-        scheme = "socks5"
-    else:
-        raise HTTPException(status_code=400, detail="不支持的代理类型")
-
-    auth = ""
-    if request.username and request.password:
-        auth = f"{request.username}:{request.password}@"
-
-    proxy_url = f"{scheme}://{auth}{request.host}:{request.port}"
-
-    # 测试连接
-    test_url = "https://api.ipify.org?format=json"
-    start_time = time.time()
-
-    try:
-        proxies = {
-            "http": proxy_url,
-            "https": proxy_url
-        }
-
-        response = cffi_requests.get(
-            test_url,
-            proxies=proxies,
-            timeout=3,
-            impersonate="chrome110"
-        )
-
-        elapsed_time = time.time() - start_time
-
-        if response.status_code == 200:
-            ip_info = response.json()
-            return {
-                "success": True,
-                "ip": ip_info.get("ip", ""),
-                "response_time": round(elapsed_time * 1000),  # 毫秒
-                "message": f"代理连接成功，出口 IP: {ip_info.get('ip', 'unknown')}"
-            }
-        else:
-            return {
-                "success": False,
-                "message": f"代理返回错误状态码: {response.status_code}"
-            }
-
-    except Exception as e:
-        return {
-            "success": False,
-            "message": f"代理连接失败: {str(e)}"
-        }
-
-
 @router.get("/proxy/dynamic")
 async def get_dynamic_proxy_settings():
     """获取动态代理设置"""
@@ -639,6 +544,16 @@ async def delete_proxy_item(proxy_id: int):
         return {"success": True, "message": "代理已删除"}
 
 
+@router.post("/proxies/{proxy_id}/set-default")
+async def set_proxy_default(proxy_id: int):
+    """将指定代理设为默认"""
+    with get_db() as db:
+        proxy = crud.set_proxy_default(db, proxy_id)
+        if not proxy:
+            raise HTTPException(status_code=404, detail="代理不存在")
+        return {"success": True, "proxy": proxy.to_dict()}
+
+
 @router.post("/proxies/{proxy_id}/test")
 async def test_proxy_item(proxy_id: int):
     """测试单个代理"""
@@ -772,77 +687,6 @@ async def disable_proxy(proxy_id: int):
         if not proxy:
             raise HTTPException(status_code=404, detail="代理不存在")
         return {"success": True, "message": "代理已禁用"}
-
-
-# ============== CPA 设置 ==============
-
-class CPASettings(BaseModel):
-    """CPA 设置"""
-    enabled: bool = False
-    api_url: str = ""
-    api_token: str = ""
-
-
-class CPATestRequest(BaseModel):
-    """CPA 测试请求"""
-    api_url: str
-    api_token: str
-
-
-@router.get("/cpa")
-async def get_cpa_settings():
-    """获取 CPA 设置"""
-    settings = get_settings()
-
-    return {
-        "enabled": settings.cpa_enabled,
-        "api_url": settings.cpa_api_url,
-        "has_token": bool(settings.cpa_api_token and settings.cpa_api_token.get_secret_value()),
-    }
-
-
-@router.post("/cpa")
-async def update_cpa_settings(request: CPASettings):
-    """更新 CPA 设置"""
-    update_dict = {
-        "cpa_enabled": request.enabled,
-        "cpa_api_url": request.api_url,
-    }
-
-    # 只有提供了 token 才更新
-    if request.api_token:
-        update_dict["cpa_api_token"] = request.api_token
-
-    update_settings(**update_dict)
-
-    return {"success": True, "message": "CPA 设置已更新"}
-
-
-@router.post("/cpa/test")
-async def test_cpa_connection(request: CPATestRequest):
-    """测试 CPA 连接"""
-    from ...core.cpa_upload import test_cpa_connection as do_test
-
-    settings = get_settings()
-    proxy = settings.proxy_url
-
-    # 如果传入 'use_saved_token'，使用已保存的 token
-    api_token = request.api_token
-    if api_token == 'use_saved_token' or not api_token:
-        if settings.cpa_api_token:
-            api_token = settings.cpa_api_token.get_secret_value()
-        else:
-            return {
-                "success": False,
-                "message": "未配置 API Token"
-            }
-
-    success, message = do_test(request.api_url, api_token, proxy)
-
-    return {
-        "success": success,
-        "message": message
-    }
 
 
 # ============== Outlook 设置 ==============

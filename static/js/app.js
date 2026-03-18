@@ -102,19 +102,19 @@ document.addEventListener('DOMContentLoaded', () => {
 // 检查 CPA 是否启用，未启用则禁用复选框；同时加载 CPA 服务列表
 async function checkCpaEnabled() {
     if (!elements.autoUploadCpa) return;
+    // 加载 CPA 服务列表，列表为空则禁用复选框
+    await loadCpaServiceOptions();
     try {
-        const data = await api.get('/settings/cpa');
-        if (!data.enabled) {
+        const services = await api.get('/cpa-services?enabled=true');
+        if (!services || services.length === 0) {
             elements.autoUploadCpa.disabled = true;
-            elements.autoUploadCpa.title = '请先在设置中启用 CPA 上传';
+            elements.autoUploadCpa.title = '请先在设置中添加 CPA 服务';
             const label = elements.autoUploadCpa.closest('label');
             if (label) label.style.opacity = '0.5';
         }
     } catch (e) {
         elements.autoUploadCpa.disabled = true;
     }
-    // 加载 CPA 服务列表
-    await loadCpaServiceOptions();
     // 复选框联动显示/隐藏服务选择器
     if (elements.autoUploadCpa) {
         elements.autoUploadCpa.addEventListener('change', () => {
@@ -130,8 +130,7 @@ async function loadCpaServiceOptions() {
     if (!elements.cpaServiceSelect) return;
     try {
         const services = await api.get('/cpa-services?enabled=true');
-        // 保留「使用全局配置」选项
-        const defaultOpt = '<option value="">使用全局配置</option>';
+        const defaultOpt = '<option value="">自动选择（第一个启用的服务）</option>';
         const opts = services.map(s =>
             `<option value="${s.id}">${s.name.replace(/</g,'&lt;')}</option>`
         ).join('');

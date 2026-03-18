@@ -156,6 +156,7 @@ class Proxy(Base):
     username = Column(String(100))
     password = Column(String(255))
     enabled = Column(Boolean, default=True)
+    is_default = Column(Boolean, default=False)  # 是否为默认代理
     priority = Column(Integer, default=0)  # 优先级（保留字段）
     last_used = Column(DateTime)  # 最后使用时间
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -171,6 +172,7 @@ class Proxy(Base):
             'port': self.port,
             'username': self.username,
             'enabled': self.enabled,
+            'is_default': self.is_default or False,
             'priority': self.priority,
             'last_used': self.last_used.isoformat() if self.last_used else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,

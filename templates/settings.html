@@ -48,66 +48,11 @@
 
             <!-- 代理设置 -->
             <div class="tab-content active" id="proxy-tab">
-                <!-- 默认代理配置 -->
-                <div class="card">
-                    <div class="card-header">
-                        <h3>默认代理配置</h3>
-                        <span class="hint">当代理列表为空时使用此配置</span>
-                    </div>
-                    <div class="card-body">
-                        <form id="proxy-form">
-                            <div class="form-group">
-                                <label>
-                                    <input type="checkbox" id="proxy-enabled" name="enabled">
-                                    启用代理
-                                </label>
-                            </div>
-
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label for="proxy-type">代理类型</label>
-                                    <select id="proxy-type" name="type">
-                                        <option value="http">HTTP</option>
-                                        <option value="socks5">SOCKS5</option>
-                                    </select>
-                                </div>
-
-                                <div class="form-group">
-                                    <label for="proxy-host">主机地址</label>
-                                    <input type="text" id="proxy-host" name="host" value="127.0.0.1">
-                                </div>
-
-                                <div class="form-group">
-                                    <label for="proxy-port">端口</label>
-                                    <input type="number" id="proxy-port" name="port" value="7890">
-                                </div>
-                            </div>
-
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label for="proxy-username">用户名 (可选)</label>
-                                    <input type="text" id="proxy-username" name="username" autocomplete="off">
-                                </div>
-
-                                <div class="form-group">
-                                    <label for="proxy-password">密码 (可选)</label>
-                                    <input type="password" id="proxy-password" name="password" autocomplete="new-password">
-                                </div>
-                            </div>
-
-                            <div class="form-actions">
-                                <button type="submit" class="btn btn-primary">💾 保存设置</button>
-                                <button type="button" class="btn btn-secondary" id="test-proxy-btn">🔌 测试连接</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-
                 <!-- 动态代理配置 -->
                 <div class="card" style="margin-top: var(--spacing-lg);">
                     <div class="card-header">
                         <h3>动态代理配置</h3>
-                        <span class="hint">通过 API 每次获取新代理 IP，优先级高于静态代理和代理列表</span>
+                        <span class="hint">通过 API 每次获取新代理 IP，优先级高于代理列表</span>
                     </div>
                     <div class="card-body">
                         <form id="dynamic-proxy-form">
@@ -163,9 +108,10 @@
                                         <th>名称</th>
                                         <th>类型</th>
                                         <th>地址</th>
+                                        <th style="width: 60px;">默认</th>
                                         <th style="width: 80px;">状态</th>
                                         <th style="width: 120px;">最后使用</th>
-                                        <th style="width: 150px;">操作</th>
+                                        <th style="width: 180px;">操作</th>
                                     </tr>
                                 </thead>
                                 <tbody id="proxies-table">
@@ -258,43 +204,8 @@
 
             <!-- CPA 上传设置 -->
             <div class="tab-content" id="cpa-tab">
-                <div class="card">
-                    <div class="card-header">
-                        <h3>CPA 上传配置</h3>
-                        <span class="hint">配置 CliProxyApi 上传功能</span>
-                    </div>
-                    <div class="card-body">
-                        <form id="cpa-form">
-                            <div class="form-group">
-                                <label>
-                                    <input type="checkbox" id="cpa-enabled" name="enabled">
-                                    启用 CPA 上传
-                                </label>
-                                <p class="hint">启用后可在账号管理页面上传账号到 CPA 管理平台</p>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="cpa-api-url">API URL</label>
-                                <input type="text" id="cpa-api-url" name="api_url" placeholder="例如: https://cpa.example.com">
-                                <p class="hint">CPA 管理平台的 API 地址</p>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="cpa-api-token">API Token</label>
-                                <input type="password" id="cpa-api-token" name="api_token" placeholder="留空则保持原值" autocomplete="new-password">
-                                <p class="hint">CPA 管理平台的认证 Token</p>
-                            </div>
-
-                            <div class="form-actions">
-                                <button type="submit" class="btn btn-primary">💾 保存设置</button>
-                                <button type="button" class="btn btn-secondary" id="test-cpa-btn">🔌 测试连接</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-
                 <!-- CPA 服务管理 -->
-                <div class="card" style="margin-top: 16px;">
+                <div class="card">
                     <div class="card-header">
                         <h3>CPA 服务管理</h3>
                         <button class="btn btn-primary btn-sm" id="add-cpa-service-btn">+ 添加服务</button>

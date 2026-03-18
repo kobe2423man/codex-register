@@ -7,9 +7,7 @@
 const elements = {
     tabs: document.querySelectorAll('.tab-btn'),
     tabContents: document.querySelectorAll('.tab-content'),
-    proxyForm: document.getElementById('proxy-form'),
     registrationForm: document.getElementById('registration-settings-form'),
-    testProxyBtn: document.getElementById('test-proxy-btn'),
     backupBtn: document.getElementById('backup-btn'),
     cleanupBtn: document.getElementById('cleanup-btn'),
     addEmailServiceBtn: document.getElementById('add-email-service-btn'),
@@ -41,9 +39,6 @@ const elements = {
     // 动态代理设置
     dynamicProxyForm: document.getElementById('dynamic-proxy-form'),
     testDynamicProxyBtn: document.getElementById('test-dynamic-proxy-btn'),
-    // CPA 设置
-    cpaForm: document.getElementById('cpa-form'),
-    testCpaBtn: document.getElementById('test-cpa-btn'),
     // CPA 服务管理
     addCpaServiceBtn: document.getElementById('add-cpa-service-btn'),
     cpaServicesTable: document.getElementById('cpa-services-table'),
@@ -95,16 +90,6 @@ function initTabs() {
 
 // 事件监听
 function initEventListeners() {
-    // 代理表单
-    if (elements.proxyForm) {
-        elements.proxyForm.addEventListener('submit', handleSaveProxy);
-    }
-
-    // 测试代理
-    if (elements.testProxyBtn) {
-        elements.testProxyBtn.addEventListener('click', handleTestProxy);
-    }
-
     // 注册配置表单
     if (elements.registrationForm) {
         elements.registrationForm.addEventListener('submit', handleSaveRegistration);
@@ -228,15 +213,6 @@ function initEventListeners() {
         elements.testDynamicProxyBtn.addEventListener('click', handleTestDynamicProxy);
     }
 
-    // CPA 设置
-    if (elements.cpaForm) {
-        elements.cpaForm.addEventListener('submit', handleSaveCpa);
-    }
-
-    if (elements.testCpaBtn) {
-        elements.testCpaBtn.addEventListener('click', handleTestCpa);
-    }
-
     // 验证码设置
     if (elements.emailCodeForm) {
         elements.emailCodeForm.addEventListener('submit', handleSaveEmailCode);
@@ -286,13 +262,6 @@ async function loadSettings() {
     try {
         const data = await api.get('/settings');
 
-        // 代理设置
-        document.getElementById('proxy-enabled').checked = data.proxy?.enabled || false;
-        document.getElementById('proxy-type').value = data.proxy?.type || 'http';
-        document.getElementById('proxy-host').value = data.proxy?.host || '127.0.0.1';
-        document.getElementById('proxy-port').value = data.proxy?.port || 7890;
-        document.getElementById('proxy-username').value = data.proxy?.username || '';
-
         // 动态代理设置
         document.getElementById('dynamic-proxy-enabled').checked = data.proxy?.dynamic_enabled || false;
         document.getElementById('dynamic-proxy-api-url').value = data.proxy?.dynamic_api_url || '';
@@ -312,8 +281,6 @@ async function loadSettings() {
             document.getElementById('email-code-poll-interval').value = data.email_code.poll_interval || 3;
         }
 
-        // 加载 CPA 设置
-        loadCpaSettings();
         // 加载 Outlook 设置
         loadOutlookSettings();
         // 加载 Team Manager 设置
@@ -442,57 +409,6 @@ async function loadDatabaseInfo() {
 
     } catch (error) {
         console.error('加载数据库信息失败:', error);
-    }
-}
-
-// 保存代理设置
-async function handleSaveProxy(e) {
-    e.preventDefault();
-
-    const data = {
-        enabled: document.getElementById('proxy-enabled').checked,
-        type: document.getElementById('proxy-type').value,
-        host: document.getElementById('proxy-host').value,
-        port: parseInt(document.getElementById('proxy-port').value),
-        username: document.getElementById('proxy-username').value || null,
-        password: document.getElementById('proxy-password').value || null,
-    };
-
-    try {
-        await api.post('/settings/proxy', data);
-        toast.success('代理设置已保存');
-    } catch (error) {
-        toast.error('保存失败: ' + error.message);
-    }
-}
-
-// 测试代理
-async function handleTestProxy() {
-    elements.testProxyBtn.disabled = true;
-    elements.testProxyBtn.innerHTML = '<span class="loading-spinner"></span> 测试中...';
-
-    try {
-        const data = {
-            enabled: document.getElementById('proxy-enabled').checked,
-            type: document.getElementById('proxy-type').value,
-            host: document.getElementById('proxy-host').value,
-            port: parseInt(document.getElementById('proxy-port').value),
-            username: document.getElementById('proxy-username').value || null,
-            password: document.getElementById('proxy-password').value || null,
-        };
-
-        const result = await api.post('/settings/proxy/test', data);
-
-        if (result.success) {
-            toast.success(result.message);
-        } else {
-            toast.error(result.message);
-        }
-    } catch (error) {
-        toast.error('测试失败: ' + error.message);
-    } finally {
-        elements.testProxyBtn.disabled = false;
-        elements.testProxyBtn.textContent = '🔌 测试连接';
     }
 }
 
@@ -839,6 +755,12 @@ function renderProxies(proxies) {
             <td><span class="badge">${proxy.type.toUpperCase()}</span></td>
             <td><code>${escapeHtml(proxy.host)}:${proxy.port}</code></td>
             <td>
+                ${proxy.is_default
+                    ? '<span class="status-badge active">默认</span>'
+                    : `<button class="btn btn-ghost btn-sm" onclick="handleSetProxyDefault(${proxy.id})" title="设为默认">设默认</button>`
+                }
+            </td>
+            <td>
                 <span class="status-badge ${proxy.enabled ? 'active' : 'disabled'}">
                     ${proxy.enabled ? '已启用' : '已禁用'}
                 </span>
@@ -862,6 +784,17 @@ function renderProxies(proxies) {
             </td>
         </tr>
     `).join('');
+}
+
+// 设为默认代理
+async function handleSetProxyDefault(id) {
+    try {
+        await api.post(`/settings/proxies/${id}/set-default`);
+        toast.success('已设为默认代理');
+        loadProxies();
+    } catch (error) {
+        toast.error('操作失败: ' + error.message);
+    }
 }
 
 // 打开代理模态框
@@ -988,45 +921,6 @@ async function handleTestAllProxies() {
 
 
 // ============================================================================
-// CPA 设置管理
-// ============================================================================
-
-// 加载 CPA 设置
-async function loadCpaSettings() {
-    try {
-        const data = await api.get('/settings/cpa');
-
-        document.getElementById('cpa-enabled').checked = data.enabled || false;
-        document.getElementById('cpa-api-url').value = data.api_url || '';
-        // 不填充 token，只显示是否有值
-        document.getElementById('cpa-api-token').value = '';
-        document.getElementById('cpa-api-token').placeholder = data.has_token ? '已配置，留空保持不变' : '请输入 API Token';
-
-    } catch (error) {
-        console.error('加载 CPA 设置失败:', error);
-    }
-}
-
-// 保存 CPA 设置
-async function handleSaveCpa(e) {
-    e.preventDefault();
-
-    const data = {
-        enabled: document.getElementById('cpa-enabled').checked,
-        api_url: document.getElementById('cpa-api-url').value,
-        api_token: document.getElementById('cpa-api-token').value || ''
-    };
-
-    try {
-        await api.post('/settings/cpa', data);
-        toast.success('CPA 设置已保存');
-        loadCpaSettings();
-    } catch (error) {
-        toast.error('保存失败: ' + error.message);
-    }
-}
-
-// ============================================================================
 // Outlook 设置管理
 // ============================================================================
 
@@ -1052,47 +946,6 @@ async function handleSaveOutlookSettings(e) {
         toast.success('Outlook 设置已保存');
     } catch (error) {
         toast.error('保存失败: ' + error.message);
-    }
-}
-
-// 测试 CPA 连接
-async function handleTestCpa() {
-    const apiUrl = document.getElementById('cpa-api-url').value;
-    const apiToken = document.getElementById('cpa-api-token').value;
-
-    if (!apiUrl) {
-        toast.warning('请输入 API URL');
-        return;
-    }
-
-    // 如果 token 为空，尝试使用已保存的 token 进行测试
-    if (!apiToken) {
-        const cpaSettings = await api.get('/settings/cpa');
-        if (!cpaSettings.has_token) {
-            toast.warning('请输入 API Token');
-            return;
-        }
-    }
-
-    elements.testCpaBtn.disabled = true;
-    elements.testCpaBtn.innerHTML = '<span class="loading-spinner"></span> 测试中...';
-
-    try {
-        const result = await api.post('/settings/cpa/test', {
-            api_url: apiUrl,
-            api_token: apiToken || 'use_saved_token'
-        });
-
-        if (result.success) {
-            toast.success(result.message);
-        } else {
-            toast.error(result.message);
-        }
-    } catch (error) {
-        toast.error('测试失败: ' + error.message);
-    } finally {
-        elements.testCpaBtn.disabled = false;
-        elements.testCpaBtn.textContent = '🔌 测试连接';
     }
 }
 

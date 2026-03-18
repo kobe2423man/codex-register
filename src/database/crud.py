@@ -484,12 +484,29 @@ def update_proxy_last_used(db: Session, proxy_id: int) -> bool:
 
 
 def get_random_proxy(db: Session) -> Optional[Proxy]:
-    """随机获取一个启用的代理"""
+    """随机获取一个启用的代理，优先返回 is_default=True 的代理"""
     import random
+    # 优先返回默认代理
+    default_proxy = db.query(Proxy).filter(Proxy.enabled == True, Proxy.is_default == True).first()
+    if default_proxy:
+        return default_proxy
     proxies = get_enabled_proxies(db)
     if not proxies:
         return None
     return random.choice(proxies)
+
+
+def set_proxy_default(db: Session, proxy_id: int) -> Optional[Proxy]:
+    """将指定代理设为默认，同时清除其他代理的默认标记"""
+    # 清除所有默认标记
+    db.query(Proxy).filter(Proxy.is_default == True).update({"is_default": False})
+    # 设置新的默认代理
+    proxy = db.query(Proxy).filter(Proxy.id == proxy_id).first()
+    if proxy:
+        proxy.is_default = True
+        db.commit()
+        db.refresh(proxy)
+    return proxy
 
 
 def get_proxies_count(db: Session, enabled: Optional[bool] = None) -> int:
