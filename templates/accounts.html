@@ -136,6 +136,7 @@
                                 <a href="#" class="dropdown-item" id="batch-upload-cpa-item">☁️ 上传到 CPA</a>
                                 <a href="#" class="dropdown-item" id="batch-upload-sub2api-item">🔗 上传到 Sub2API</a>
                                 <a href="#" class="dropdown-item" id="batch-upload-tm-item">🚀 上传到 Team Manager</a>
+                                <a href="#" class="dropdown-item" id="batch-upload-newapi-item">🧩 上传到 NEWAPI</a>
                             </div>
                         </div>
                         <button class="btn btn-danger" id="batch-delete-btn" disabled>
@@ -174,6 +175,7 @@
                                     <th style="width: 120px;">邮箱服务</th>
                                     <th style="width: 80px;">状态</th>
                                     <th style="width: 80px;">CPA</th>
+                                    <th style="width: 80px;">NEWAPI</th>
                                     <th style="width: 80px;">订阅</th>
                                     <th style="width: 140px;">最后刷新</th>
                                     <th style="width: 160px;">操作</th>
@@ -295,6 +297,25 @@
             <div class="modal-footer" style="padding: 12px 20px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end;">
                 <button class="btn btn-primary" id="codex-auth-download-btn" style="display: none;">下载 auth.json</button>
                 <button class="btn btn-secondary" id="close-codex-auth-modal-btn">关闭</button>
+            </div>
+        </div>
+    </div>
+    <!-- NEWAPI 服务选择模态框 -->
+    <div class="modal" id="newapi-service-modal">
+        <div class="modal-content" style="max-width: 480px;">
+            <div class="modal-header">
+                <h3>🧩 选择 NEWAPI 服务</h3>
+                <button class="modal-close" id="close-newapi-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="color: var(--text-muted); margin-bottom: 12px; font-size: 0.9rem;">选择要上传到的 NEWAPI 服务，或自动选择第一个启用的服务。</p>
+                <div id="newapi-service-list" style="display: flex; flex-direction: column; gap: 8px; max-height: 300px; overflow-y: auto;">
+                    <div style="text-align: center; color: var(--text-muted);">加载中...</div>
+                </div>
+            </div>
+            <div class="modal-footer" style="padding: 12px 20px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end;">
+                <button class="btn btn-secondary" id="newapi-use-auto-btn">自动选择</button>
+                <button class="btn btn-secondary" id="cancel-newapi-modal-btn">取消</button>
             </div>
         </div>
     </div>

@@ -94,6 +94,9 @@ const elements = {
     autoUploadTm: document.getElementById('auto-upload-tm'),
     tmServiceSelectGroup: document.getElementById('tm-service-select-group'),
     tmServiceSelect: document.getElementById('tm-service-select'),
+    autoUploadNewapi: document.getElementById('auto-upload-newapi'),
+    newapiServiceSelectGroup: document.getElementById('newapi-service-select-group'),
+    newapiServiceSelect: document.getElementById('newapi-service-select'),
 };
 
 // 初始化
@@ -113,6 +116,7 @@ async function initAutoUploadOptions() {
         loadServiceSelect('/cpa-services?enabled=true', elements.cpaServiceSelect, elements.autoUploadCpa, elements.cpaServiceSelectGroup),
         loadServiceSelect('/sub2api-services?enabled=true', elements.sub2apiServiceSelect, elements.autoUploadSub2api, elements.sub2apiServiceSelectGroup),
         loadServiceSelect('/tm-services?enabled=true', elements.tmServiceSelect, elements.autoUploadTm, elements.tmServiceSelectGroup),
+        loadServiceSelect('/newapi-services?enabled=true', elements.newapiServiceSelect, elements.autoUploadNewapi, elements.newapiServiceSelectGroup),
     ]);
 }
 
@@ -480,6 +484,8 @@ async function handleStartRegistration(e) {
         sub2api_service_ids: elements.autoUploadSub2api && elements.autoUploadSub2api.checked ? getSelectedServiceIds(elements.sub2apiServiceSelect) : [],
         auto_upload_tm: elements.autoUploadTm ? elements.autoUploadTm.checked : false,
         tm_service_ids: elements.autoUploadTm && elements.autoUploadTm.checked ? getSelectedServiceIds(elements.tmServiceSelect) : [],
+        auto_upload_newapi: elements.autoUploadNewapi ? elements.autoUploadNewapi.checked : false,
+        newapi_service_ids: elements.autoUploadNewapi && elements.autoUploadNewapi.checked ? getSelectedServiceIds(elements.newapiServiceSelect) : [],
     };
 
     // 如果选择了数据库中的服务，传递 service_id
@@ -1196,6 +1202,8 @@ async function handleOutlookBatchRegistration() {
         sub2api_service_ids: elements.autoUploadSub2api && elements.autoUploadSub2api.checked ? getSelectedServiceIds(elements.sub2apiServiceSelect) : [],
         auto_upload_tm: elements.autoUploadTm ? elements.autoUploadTm.checked : false,
         tm_service_ids: elements.autoUploadTm && elements.autoUploadTm.checked ? getSelectedServiceIds(elements.tmServiceSelect) : [],
+        auto_upload_newapi: elements.autoUploadNewapi ? elements.autoUploadNewapi.checked : false,
+        newapi_service_ids: elements.autoUploadNewapi && elements.autoUploadNewapi.checked ? getSelectedServiceIds(elements.newapiServiceSelect) : [],
     };
 
     addLog('info', `[系统] 正在启动 Outlook 批量注册 (${selectedIds.length} 个账户)...`);

@@ -21,6 +21,7 @@ from ...core.openai.token_refresh import validate_account_token as do_validate
 from ...core.upload.cpa_upload import generate_token_json, batch_upload_to_cpa, upload_to_cpa
 from ...core.upload.team_manager_upload import upload_to_team_manager, batch_upload_to_team_manager
 from ...core.upload.sub2api_upload import batch_upload_to_sub2api, upload_to_sub2api
+from ...core.upload.newapi_upload import upload_to_newapi, batch_upload_to_newapi
 
 from ...core.dynamic_proxy import get_proxy_url_for_task
 from ...database import crud
@@ -155,6 +156,8 @@ class AccountResponse(BaseModel):
     proxy_used: Optional[str] = None
     cpa_uploaded: bool = False
     cpa_uploaded_at: Optional[str] = None
+    newapi_uploaded: bool = False
+    newapi_uploaded_at: Optional[str] = None
     cookies: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
@@ -234,6 +237,8 @@ def account_to_response(account: Account) -> AccountResponse:
         proxy_used=account.proxy_used,
         cpa_uploaded=account.cpa_uploaded or False,
         cpa_uploaded_at=account.cpa_uploaded_at.isoformat() if account.cpa_uploaded_at else None,
+        newapi_uploaded=account.newapi_uploaded or False,
+        newapi_uploaded_at=account.newapi_uploaded_at.isoformat() if account.newapi_uploaded_at else None,
         cookies=account.cookies,
         created_at=account.created_at.isoformat() if account.created_at else None,
         updated_at=account.updated_at.isoformat() if account.updated_at else None,
@@ -1409,6 +1414,85 @@ async def upload_account_to_tm(account_id: int, request: Optional[UploadTMReques
         if not account:
             raise HTTPException(status_code=404, detail="账号不存在")
         success, message = upload_to_team_manager(account, api_url, api_key)
+
+    return {"success": success, "message": message}
+
+
+# ============== NEWAPI 上传 ==============
+
+class UploadNewapiRequest(BaseModel):
+    service_id: Optional[int] = None
+
+
+class BatchUploadNewapiRequest(BaseModel):
+    ids: List[int] = []
+    select_all: bool = False
+    status_filter: Optional[str] = None
+    email_service_filter: Optional[str] = None
+    search_filter: Optional[str] = None
+    service_id: Optional[int] = None
+
+
+@router.post("/batch-upload-newapi")
+async def batch_upload_accounts_to_newapi(request: BatchUploadNewapiRequest):
+    with get_db() as db:
+        if request.service_id:
+            svc = crud.get_newapi_service_by_id(db, request.service_id)
+        else:
+            svcs = crud.get_newapi_services(db, enabled=True)
+            svc = svcs[0] if svcs else None
+
+        if not svc:
+            raise HTTPException(status_code=400, detail="未找到可用的 NEWAPI 服务，请先在设置中配置")
+
+        api_url = svc.api_url
+        api_key = svc.api_key
+
+        ids = resolve_account_ids(
+            db, request.ids, request.select_all,
+            request.status_filter, request.email_service_filter, request.search_filter
+        )
+
+    results = batch_upload_to_newapi(
+        ids,
+        api_url,
+        api_key,
+        channel_type=svc.channel_type,
+        channel_base_url=svc.channel_base_url,
+        channel_models=svc.channel_models,
+    )
+    return results
+
+
+@router.post("/{account_id}/upload-newapi")
+async def upload_account_to_newapi(account_id: int, request: Optional[UploadNewapiRequest] = Body(default=None)):
+    service_id = request.service_id if request else None
+
+    with get_db() as db:
+        if service_id:
+            svc = crud.get_newapi_service_by_id(db, service_id)
+        else:
+            svcs = crud.get_newapi_services(db, enabled=True)
+            svc = svcs[0] if svcs else None
+
+        if not svc:
+            raise HTTPException(status_code=400, detail="未找到可用的 NEWAPI 服务，请先在设置中配置")
+
+        account = crud.get_account_by_id(db, account_id)
+        if not account:
+            raise HTTPException(status_code=404, detail="账号不存在")
+        success, message = upload_to_newapi(
+            account,
+            svc.api_url,
+            svc.api_key,
+            channel_type=svc.channel_type,
+            channel_base_url=svc.channel_base_url,
+            channel_models=svc.channel_models,
+        )
+        if success:
+            account.newapi_uploaded = True
+            account.newapi_uploaded_at = datetime.utcnow()
+            db.commit()
 
     return {"success": success, "message": message}
 

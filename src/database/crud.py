@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy import and_, or_, desc, asc, func
 
-from .models import Account, EmailService, RegistrationTask, Setting, Proxy, CpaService, Sub2ApiService
+from .models import Account, EmailService, RegistrationTask, Setting, Proxy, CpaService, Sub2ApiService, NewapiService
 
 
 TOKEN_FIELD_NAMES = ("access_token", "refresh_token", "id_token", "session_token")
@@ -780,6 +780,63 @@ def delete_tm_service(db: Session, service_id: int) -> bool:
     db.commit()
     return True
 
+
+def create_newapi_service(
+    db: Session,
+    name: str,
+    api_url: str,
+    api_key: str,
+    enabled: bool = True,
+    priority: int = 0,
+    channel_type: int = 57,
+    channel_base_url: str = "",
+    channel_models: str = "gpt-5.4,gpt-5,gpt-5-codex,gpt-5-codex-mini,gpt-5.1,gpt-5.1-codex,gpt-5.1-codex-max,gpt-5.1-codex-mini,gpt-5.2,gpt-5.2-codex,gpt-5.3-codex,gpt-5-openai-compact,gpt-5-codex-openai-compact,gpt-5-codex-mini-openai-compact,gpt-5.1-openai-compact,gpt-5.1-codex-openai-compact,gpt-5.1-codex-max-openai-compact,gpt-5.1-codex-mini-openai-compact,gpt-5.2-openai-compact,gpt-5.2-codex-openai-compact,gpt-5.3-codex-openai-compact",
+) -> NewapiService:
+    svc = NewapiService(
+        name=name,
+        api_url=api_url,
+        api_key=api_key,
+        enabled=enabled,
+        priority=priority,
+        channel_type=channel_type,
+        channel_base_url=channel_base_url,
+        channel_models=channel_models,
+    )
+    db.add(svc)
+    db.commit()
+    db.refresh(svc)
+    return svc
+
+
+def get_newapi_service_by_id(db: Session, service_id: int) -> Optional[NewapiService]:
+    return db.query(NewapiService).filter(NewapiService.id == service_id).first()
+
+
+def get_newapi_services(db: Session, enabled=None):
+    q = db.query(NewapiService)
+    if enabled is not None:
+        q = q.filter(NewapiService.enabled == enabled)
+    return q.order_by(NewapiService.priority.asc(), NewapiService.id.asc()).all()
+
+
+def update_newapi_service(db: Session, service_id: int, **kwargs):
+    svc = get_newapi_service_by_id(db, service_id)
+    if not svc:
+        return None
+    for k, v in kwargs.items():
+        setattr(svc, k, v)
+    db.commit()
+    db.refresh(svc)
+    return svc
+
+
+def delete_newapi_service(db: Session, service_id: int) -> bool:
+    svc = get_newapi_service_by_id(db, service_id)
+    if not svc:
+        return False
+    db.delete(svc)
+    db.commit()
+    return True
 
 def update_outlook_refresh_token(db: Session, service_id: int, email: str, new_refresh_token: str):
     """更新 EmailService.config 中指定邮箱的 refresh_token"""

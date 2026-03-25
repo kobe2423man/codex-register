@@ -107,6 +107,7 @@ function initEventListeners() {
     document.getElementById('batch-upload-cpa-item').addEventListener('click', (e) => { e.preventDefault(); uploadMenu.classList.remove('active'); handleBatchUploadCpa(); });
     document.getElementById('batch-upload-sub2api-item').addEventListener('click', (e) => { e.preventDefault(); uploadMenu.classList.remove('active'); handleBatchUploadSub2Api(); });
     document.getElementById('batch-upload-tm-item').addEventListener('click', (e) => { e.preventDefault(); uploadMenu.classList.remove('active'); handleBatchUploadTm(); });
+    document.getElementById('batch-upload-newapi-item').addEventListener('click', (e) => { e.preventDefault(); uploadMenu.classList.remove('active'); handleBatchUploadNewapi(); });
 
     // 批量删除
     elements.batchDeleteBtn.addEventListener('click', handleBatchDelete);
@@ -329,6 +330,13 @@ function renderAccounts(accounts) {
                 <div class="cpa-status">
                     ${account.cpa_uploaded
                         ? `<span class="badge uploaded" title="已上传于 ${format.date(account.cpa_uploaded_at)}">✓</span>`
+                        : `<span class="badge pending">-</span>`}
+                </div>
+            </td>
+            <td>
+                <div class="cpa-status">
+                    ${account.newapi_uploaded
+                        ? `<span class="badge uploaded" title="已上传于 ${format.date(account.newapi_uploaded_at)}">✓</span>`
                         : `<span class="badge pending">-</span>`}
                 </div>
             </td>
@@ -869,6 +877,7 @@ async function uploadAccount(id) {
         { label: '☁️ 上传到 CPA', value: 'cpa' },
         { label: '🔗 上传到 Sub2API', value: 'sub2api' },
         { label: '🚀 上传到 Team Manager', value: 'tm' },
+        { label: '🧩 上传到 NEWAPI', value: 'newapi' },
     ];
 
     const choice = await new Promise((resolve) => {
@@ -898,6 +907,7 @@ async function uploadAccount(id) {
     if (choice === 'cpa') return uploadToCpa(id);
     if (choice === 'sub2api') return uploadToSub2Api(id);
     if (choice === 'tm') return uploadToTm(id);
+    if (choice === 'newapi') return uploadToNewapi(id);
 }
 
 // 上传单个账号到CPA
@@ -1225,6 +1235,120 @@ async function handleBatchUploadTm() {
         const payload = buildBatchPayload();
         if (choice.service_id != null) payload.service_id = choice.service_id;
         const result = await api.post('/accounts/batch-upload-tm', payload);
+        let message = `成功: ${result.success_count}`;
+        if (result.failed_count > 0) message += `, 失败: ${result.failed_count}`;
+        if (result.skipped_count > 0) message += `, 跳过: ${result.skipped_count}`;
+        toast.success(message);
+        loadAccounts();
+    } catch (e) {
+        toast.error('批量上传失败: ' + e.message);
+    } finally {
+        updateBatchButtons();
+    }
+}
+
+// ============== NEWAPI 上传 ==============
+
+function selectNewapiService() {
+    return new Promise(async (resolve) => {
+        const modal = document.getElementById('newapi-service-modal');
+        const listEl = document.getElementById('newapi-service-list');
+        const closeBtn = document.getElementById('close-newapi-modal');
+        const cancelBtn = document.getElementById('cancel-newapi-modal-btn');
+        const autoBtn = document.getElementById('newapi-use-auto-btn');
+
+        listEl.innerHTML = '<div style="text-align:center;color:var(--text-muted)">加载中...</div>';
+        modal.classList.add('active');
+
+        let services = [];
+        try {
+            services = await api.get('/newapi-services?enabled=true');
+        } catch (e) {
+            services = [];
+        }
+
+        if (services.length === 0) {
+            listEl.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:12px;">暂无已启用的 NEWAPI 服务，将自动选择第一个</div>';
+        } else {
+            listEl.innerHTML = services.map(s => `
+                <div class="newapi-service-item" data-id="${s.id}" style="
+                    padding: 10px 14px;
+                    border: 1px solid var(--border);
+                    border-radius: 8px;
+                    cursor: pointer;
+                    transition: background 0.15s;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                ">
+                    <div>
+                        <div style="font-weight:500;">${escapeHtml(s.name)}</div>
+                        <div style="font-size:0.8rem;color:var(--text-muted);">${escapeHtml(s.api_url)}</div>
+                    </div>
+                    <span class="badge" style="background:var(--primary);color:#fff;font-size:0.7rem;padding:2px 8px;border-radius:10px;">选择</span>
+                </div>
+            `).join('');
+
+            listEl.querySelectorAll('.newapi-service-item').forEach(item => {
+                item.addEventListener('mouseenter', () => item.style.background = 'var(--surface-hover)');
+                item.addEventListener('mouseleave', () => item.style.background = '');
+                item.addEventListener('click', () => {
+                    cleanup();
+                    resolve({ service_id: parseInt(item.dataset.id) });
+                });
+            });
+        }
+
+        function cleanup() {
+            modal.classList.remove('active');
+            closeBtn.removeEventListener('click', onCancel);
+            cancelBtn.removeEventListener('click', onCancel);
+            autoBtn.removeEventListener('click', onAuto);
+        }
+        function onCancel() { cleanup(); resolve(null); }
+        function onAuto() { cleanup(); resolve({ service_id: null }); }
+
+        closeBtn.addEventListener('click', onCancel);
+        cancelBtn.addEventListener('click', onCancel);
+        autoBtn.addEventListener('click', onAuto);
+    });
+}
+
+async function uploadToNewapi(id) {
+    const choice = await selectNewapiService();
+    if (choice === null) return;
+    try {
+        toast.info('正在上传到 NEWAPI...');
+        const payload = {};
+        if (choice.service_id != null) payload.service_id = choice.service_id;
+        const result = await api.post(`/accounts/${id}/upload-newapi`, payload);
+        if (result.success) {
+            toast.success('上传成功');
+        } else {
+            toast.error('上传失败: ' + (result.message || '未知错误'));
+        }
+    } catch (e) {
+        toast.error('上传失败: ' + e.message);
+    }
+}
+
+async function handleBatchUploadNewapi() {
+    const count = getEffectiveCount();
+    if (count === 0) return;
+
+    const choice = await selectNewapiService();
+    if (choice === null) return;
+
+    const confirmed = await confirm(`确定要将选中的 ${count} 个账号上传到 NEWAPI 吗？`);
+    if (!confirmed) return;
+
+    elements.batchUploadBtn.disabled = true;
+    elements.batchUploadBtn.textContent = '上传中...';
+
+    try {
+        const payload = buildBatchPayload();
+        if (choice.service_id != null) payload.service_id = choice.service_id;
+        const result = await api.post('/accounts/batch-upload-newapi', payload);
         let message = `成功: ${result.success_count}`;
         if (result.failed_count > 0) message += `, 失败: ${result.failed_count}`;
         if (result.skipped_count > 0) message += `, 跳过: ${result.skipped_count}`;
