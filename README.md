@@ -98,7 +98,7 @@ cp .env.example .env
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
 | `APP_HOST` | 监听主机 | `0.0.0.0` |
-| `APP_PORT` | 监听端口 | `8000` |
+| `APP_PORT` | 监听端口 | `15555` |
 | `APP_ACCESS_PASSWORD` | Web UI 访问密钥 | `admin123` |
 | `APP_DATABASE_URL` | 数据库连接字符串 | `data/database.db` |
 
@@ -107,7 +107,7 @@ cp .env.example .env
 ### 启动 Web UI
 
 ```bash
-# 默认启动（127.0.0.1:8000）
+# 默认启动（0.0.0.0:15555）
 python webui.py
 
 # 指定地址和端口
@@ -176,7 +176,7 @@ python webui.py
 
 也支持 `DATABASE_URL`，优先级低于 `APP_DATABASE_URL`。
 
-启动后访问 http://127.0.0.1:8000
+启动后访问 http://127.0.0.1:15555
 
 ## 打包为可执行文件
 
@@ -331,11 +331,11 @@ cd codex-register
 docker-compose up -d
 ```
 
-服务启动后访问 http://localhost:8000
+服务启动后访问 http://localhost:15555
 
 ### 配置说明
 
-**端口映射**：默认 `8000` 端口，可在 `docker-compose.yml` 中修改。
+**端口映射**：默认 `15555` 端口，可在 `docker-compose.yml` 中修改。
 
 **数据持久化**：
 ```yaml
@@ -349,7 +349,7 @@ volumes:
 environment:
   - APP_ACCESS_PASSWORD=mypassword
   - APP_HOST=0.0.0.0
-  - APP_PORT=8000
+  - APP_PORT=15555
 ```
 
 ### 常用命令
